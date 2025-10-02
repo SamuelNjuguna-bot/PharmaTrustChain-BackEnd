@@ -88,14 +88,25 @@ async function uploadToIPFS(product: any) {
 // -------------------------------
 
 // Verify batch
+
 app.get("/verify/:batchId", async (req: Request, res: Response) => {
   try {
-    const [valid, owner, revoked, history] = await contract.verifyProduct(
-      req.params.batchId
-    );
-    res.json({ valid, owner, revoked, history });
+    const { batchId } = req.params;
+
+    // Your existing verification logic
+    const data = await contract.verifyBatch(batchId);
+
+    // Generate QR Code dynamically
+    const qrCode = await QRCode.toDataURL(batchId);
+
+    res.json({
+      valid: data.valid,
+      owner: data.owner,
+      revoked: data.revoked,
+      history: data.history,
+      qrCode, 
+    });
   } catch (err: any) {
-    console.error("Verify error:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -159,12 +170,82 @@ app.post("/revoke-batch", async (req: Request, res: Response) => {
   }
 
   try {
-    const tx = await contract.revokeBatch(batchId);
+    const tx = await contract.revokeBatch(batchId); 
     await tx.wait();
     res.json({ txHash: tx.hash });
   } catch (err: any) {
     console.error("Revoke error:", err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+
+// -------------------------------
+// User Signup
+// -------------------------------
+app.post("/signup", async (req: Request, res: Response) => {
+  try {
+    const { username, password, role } = req.body;
+
+    if (!username || !password || !role) {
+      return res.status(400).json({ error: "All fields are required" });
+    }
+
+    // Hash password before storing (to avoid plain text on-chain, optional)
+    const passwordHash = ethers.id(password); // keccak256 hash
+
+    // Call smart contract
+    const tx = await contract.registerUser(username, passwordHash, role);
+    await tx.wait();
+
+    res.json({ success: true, message: "User registered successfully" });
+  } catch (err: any) {
+    console.error("❌ Signup error:", err);
+
+    // Try to extract a readable reason
+    const reason =
+      err.reason || err.data?.message || err.message || "Signup failed";
+
+    res.status(500).json({ error: reason });
+  }
+});
+
+// -------------------------------
+// User Login
+// -------------------------------
+app.post("/login", async (req: Request, res: Response) => {
+  try {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({ error: "All fields are required" });
+    }
+
+    const passwordHash = ethers.id(password);
+
+    // Call smart contract
+    const user = await contract.login(username, passwordHash);
+
+    if (!user.exists) {
+      return res.status(401).json({ error: "Invalid username or password" });
+    }
+
+    res.json({
+      success: true,
+      message: "Login successful",
+      user: {
+        username,
+        role: user.role,
+        wallet: user.wallet,
+      },
+    });
+  } catch (err: any) {
+    console.error("❌ Login error:", err);
+
+    const reason =
+      err.reason || err.data?.message || err.message || "Login failed";
+
+    res.status(500).json({ error: reason });
   }
 });
 
