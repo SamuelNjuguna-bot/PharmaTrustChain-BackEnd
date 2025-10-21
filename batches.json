@@ -1,0 +1,76 @@
+[
+  {
+    "id": 1,
+    "name": "Penicilin",
+    "batchNumber": "Batch0002",
+    "manufacturer": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "ipfsHash": "QmZ3QBxKUokMSCNmfdpQnnmv83geDt9vNSejkZKuUUFutu",
+    "revoked": true,
+    "timestamp": "2025-10-14T12:18:05.756Z"
+  },
+  {
+    "id": 2,
+    "name": "a",
+    "batchNumber": "a",
+    "manufacturer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "ipfsHash": "QmQ2mVWYX3TqvSSkfhoU5vHoPCQxfsc4xYfw4FbR51PkF4",
+    "revoked": true,
+    "timestamp": "2025-10-14T13:02:03.611Z"
+  },
+  {
+    "id": 3,
+    "name": "Tricohist",
+    "batchNumber": "Batch003",
+    "manufacturer": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "ipfsHash": "QmZm438kLwbMsEJUTZKUEWwvUkJDHvJuSeuN7UU2VxUHGH",
+    "revoked": true,
+    "timestamp": "2025-10-14T13:03:21.367Z"
+  },
+  {
+    "id": 4,
+    "name": "f",
+    "batchNumber": "s",
+    "manufacturer": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "ipfsHash": "QmZR8megbnRwfQc9b5aCFT9u15VhW2B2soVWN73vw8UByS",
+    "revoked": true,
+    "timestamp": "2025-10-14T13:17:13.887Z"
+  },
+  {
+    "id": 5,
+    "name": "Amoxyln",
+    "batchNumber": "200",
+    "manufacturer": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "ipfsHash": "QmTb9PHVq7J3jp5UkBxTA8oM8sUVxBKtT8eXLuXE7cTiN2",
+    "revoked": true,
+    "timestamp": "2025-10-15T08:09:05.655Z"
+  },
+  {
+    "id": 6,
+    "name": "penicilin",
+    "batchNumber": "Batch003",
+    "manufacturer": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "ipfsHash": "Qmbr2Jc2Rh9xBFjYLGny7dNCJuofvgVWTvsqHANXtRRh1k",
+    "revoked": true,
+    "timestamp": "2025-10-15T08:10:48.408Z"
+  },
+  {
+    "id": 7,
+    "name": "amoxyln",
+    "batchNumber": "Baatch001",
+    "manufacturer": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+    "ipfsHash": "QmRCggvF4KG94V1dMww5UmVL2yBkiGHiK9Y8LSRNesxxKJ",
+    "revoked": false,
+    "timestamp": "2025-10-15T09:23:13.080Z"
+  },
+  {
+    "localId": null,
+    "name": "penicilin",
+    "batchNumber": "Pk",
+    "manufacturer": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+    "ipfsHash": "QmaY2nJS3r192SBjriuehYbJdEjSSsYAxsciPTvyryTuU4",
+    "qrCode": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJQAAACUCAYAAAB1PADUAAAAAklEQVR4AewaftIAAATNSURBVO3BQW4ERxIEwfDC/P/LvjzmqYBG51CUNszwR6qWnFQtOqladFK16KRq0UnVopOqRSdVi06qFp1ULTqpWnRSteikatFJ1aKTqkUnVYs+eQnIb1IzAZnUPAHkDTUTkEnNG0B+k5o3TqoWnVQtOqla9MkyNZuAPAFkUjMBmdRMQL4JyKTmCTWbgGw6qVp0UrXopGrRJ18G5Ak1b6j5JjU3aiYgk5oJyKTmCSBPqPmmk6pFJ1WLTqoWffIvp+YGyKTmRs0EZAIyqZmATGomIP9lJ1WLTqoWnVQt+uRfDsiNmgnIpGYCMqmZgDwB5P/JSdWik6pFJ1WLPvkyNd+kZgIyAZnUTEBugExqnlDzTWr+kpOqRSdVi06qFn2yDMhvAjKpmYA8oWYCcgNkUjMBmdRMQCY1N0D+spOqRSdVi06qFuGP/IcAuVHzBJBJzRtAbtT8m51ULTqpWnRSteiTl4BMam6AfJOaJ4A8AeQJNU8AmdTcAJnUTECeUPPGSdWik6pFJ1WLPnlJzQTkRs0bQG6ATGomIJOaGyCTmm9ScwNkk5pNJ1WLTqoWnVQt+mSZmhsgN2omIDdqJiATkH8SkEnNBGQC8k1qvumkatFJ1aKTqkX4Iy8AuVEzAZnUTEAmNROQGzU3QG7UTEBu1ExAbtQ8AWRSswnIpOaNk6pFJ1WLTqoWffKSmhsgk5ongDwB5EbNDZAbNTdqboBMap4AMqn5S06qFp1ULTqpWvTJPwzIjZongExqJiCTmknNG0Bu1ExAJjVPALlRMwH5ppOqRSdVi06qFuGPvABkUnMDZFJzA2RSMwGZ1ExAJjVPALlRcwPkRs0TQN5QMwGZ1LxxUrXopGrRSdWiT74MyA2QGzUTkEnNBOQNIDdqJiCTmknNDZAbNZOaCcikZgLym06qFp1ULTqpWoQ/sgjIP0nNBOQJNTdAJjW/Ccik5i85qVp0UrXopGoR/sgLQJ5QcwNkUjMBmdRMQJ5QswnIE2omIJOaGyBvqNl0UrXopGrRSdWiT75MzQTkRs0E5A01N0CeUDMBmdTcAHkCyKRmUvMGkEnNGydVi06qFp1ULfrky4DcqLlRMwH5TWomIE8AmdRMQN4A8oSaSc2mk6pFJ1WLTqoW4Y+8AOQJNROQSc0E5Ak1E5BJzQ2QSc0NkBs1E5C/RM2mk6pFJ1WLTqoWffKSmjfU3Ki5AXKjZgLyl6l5AsiNmt90UrXopGrRSdWiT14C8pvU3AC5UXMD5AbIE0DeADKp+ctOqhadVC06qVr0yTI1m4A8oWYCcgPkm9TcALlRswnIpGbTSdWik6pFJ1WLPvkyIE+o2aTmRs0E5EbNBGRSMwF5Asg3qfmmk6pFJ1WLTqoWffJ/BsiNmgnIE0CeUDMBmdRsAjKp2XRSteikatFJ1aJP/uXUTEAmNTdqbtRMQJ5QMwGZgExqboA8oeYGyKTmjZOqRSdVi06qFn3yZWr+MiBPqJmATGqeUDMBeULNBGQCMqmZgGw6qVp0UrXopGrRJ8uA/CYgb6iZgExqJiA3QCY1k5oJyI2aJ9Q8oWbTSdWik6pFJ1WL8EeqlpxULTqpWnRSteikatFJ1aKTqkUnVYtOqhadVC06qVp0UrXopGrRSdWik6pFJ1WL/gd0ZStKEw35IAAAAABJRU5ErkJggg==",
+    "onchainId": null,
+    "revoked": false,
+    "createdAt": "2025-10-15T10:38:02.746Z"
+  }
+]

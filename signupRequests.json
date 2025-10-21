@@ -1,0 +1,30 @@
+[
+  {
+    "walletAddress": "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+    "name": "Manufacturer-X",
+    "role": 1,
+    "status": "approved",
+    "approvedAt": "2025-10-15T10:22:03.551Z"
+  },
+  {
+    "walletAddress": "0x90f79bf6eb2c4f870365e785982e1f101e93b906",
+    "name": "Manufacturer-X",
+    "role": 1,
+    "status": "approved",
+    "approvedAt": "2025-10-15T10:21:59.934Z"
+  },
+  {
+    "walletAddress": "0x15d34aaf54267db7d7c367839aaf71a00a2c6a65",
+    "name": "test manu",
+    "role": 1,
+    "status": "approved",
+    "approvedAt": "2025-10-15T10:21:56.068Z"
+  },
+  {
+    "walletAddress": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+    "name": "Manufacturer-X",
+    "role": null,
+    "status": "pending",
+    "createdAt": "2025-10-15T10:38:32.703Z"
+  }
+]

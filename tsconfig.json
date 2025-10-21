@@ -1,18 +1,15 @@
 {
   "compilerOptions": {
-    "target": "esnext",
-    "module": "nodenext",               // good for Node ESM projects
-    "moduleResolution": "nodenext",     // match with above
-    "rootDir": "./src",                 // tells TS where source files live
-    "outDir": "./dist",                 // compiled JS will go here
+    "target": "ES2020",
+    "module": "commonjs",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "types": ["node"],                  // add Node.js types
-    "lib": ["esnext"]
+    "outDir": "dist",
+    "resolveJsonModule": true,
+    "moduleResolution": "node",
+    "types": ["node", "sequelize"]
   },
-  "include": ["src"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*"]
 }
-
