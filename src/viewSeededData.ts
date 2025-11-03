@@ -1,5 +1,12 @@
 import express, { Request, Response } from "express";
-import { Sequelize, DataTypes, Model, InferAttributes, InferCreationAttributes, CreationOptional } from "sequelize";
+import {
+  Sequelize,
+  DataTypes,
+  Model,
+  InferAttributes,
+  InferCreationAttributes,
+  CreationOptional,
+} from "sequelize";
 import path from "path";
 
 // ✅ Initialize SQLite connection (same path as your main DB)
@@ -10,7 +17,10 @@ const sequelize = new Sequelize({
 });
 
 // ✅ Define PPBRecord model (must match main server)
-class PPBRecord extends Model<InferAttributes<PPBRecord>, InferCreationAttributes<PPBRecord>> {
+class PPBRecord extends Model<
+  InferAttributes<PPBRecord>,
+  InferCreationAttributes<PPBRecord>
+> {
   declare id: CreationOptional<number>;
   declare name: string;
   declare email: string;
@@ -26,7 +36,7 @@ PPBRecord.init(
     licenseNumber: { type: DataTypes.STRING, allowNull: false, unique: true },
     role: { type: DataTypes.INTEGER, allowNull: false },
   },
-  { sequelize, modelName: "PPBRecord", timestamps: false }
+  { sequelize, modelName: "PPBRecord", timestamps: false },
 );
 
 // ✅ Express app
@@ -38,7 +48,9 @@ app.get("/seeded", async (_req: Request, res: Response) => {
     const records = await PPBRecord.findAll();
     res.json({ success: true, total: records.length, data: records });
   } catch (error: any) {
-    res.status(500).json({ error: "Failed to fetch seeded data", details: error.message });
+    res
+      .status(500)
+      .json({ error: "Failed to fetch seeded data", details: error.message });
   }
 });
 

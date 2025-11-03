@@ -1,7 +1,7 @@
 import express, { Request, Response } from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
-import { ethers } from "ethers";
+import { ethers, Wallet } from "ethers";
 import dotenv from "dotenv";
 import path from "path";
 import fs from "fs";
@@ -14,6 +14,7 @@ import {
   InferCreationAttributes,
   CreationOptional,
 } from "sequelize";
+import { error } from "console";
 
 dotenv.config();
 
@@ -49,6 +50,8 @@ class User extends Model<
   declare licenseNumber: string;
   declare status: string; // pending | approved | rejected
 }
+
+
 
 User.init(
   {
@@ -86,6 +89,119 @@ PPBRecord.init(
   { sequelize, modelName: "PPBRecord", timestamps: false }
 );
 
+
+
+// -------------------- ORDER & AUDIT MODELS --------------------
+
+class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>> {
+  declare id: CreationOptional<number>;
+  declare batchId: number;
+  declare seller: string;
+  declare buyer: string;
+  declare price: number | null;
+  declare status: string;
+  declare txHash: string | null;
+  declare contact: string | null;
+
+  // 🆕 Optional field
+  declare ownershipTransferred?: boolean | null;
+}
+
+Order.init(
+  {
+    id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
+    batchId: { type: DataTypes.INTEGER, allowNull: false },
+    seller: { type: DataTypes.STRING, allowNull: false },
+    buyer: { type: DataTypes.STRING, allowNull: false },
+    price: { type: DataTypes.FLOAT, allowNull: true },
+    status: { type: DataTypes.STRING, allowNull: false, defaultValue: "pending" },
+    txHash: { type: DataTypes.STRING, allowNull: true },
+    contact: { type: DataTypes.STRING, allowNull: true },
+    ownershipTransferred: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: false,
+    },
+  },
+  { sequelize, modelName: "Order", timestamps: true }
+);
+
+
+// Audit trail
+class AuditTrail extends Model<InferAttributes<AuditTrail>, InferCreationAttributes<AuditTrail>> {
+  declare id: CreationOptional<number>;
+  declare orderId: number;
+  declare batchId: number;
+  declare from: string;
+  declare to: string;
+  declare action: string;
+  declare txHash: string | null;
+}
+
+AuditTrail.init(
+  {
+    id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
+    orderId: { type: DataTypes.INTEGER, allowNull: false },
+    batchId: { type: DataTypes.INTEGER, allowNull: false },
+    from: { type: DataTypes.STRING, allowNull: false },
+    to: { type: DataTypes.STRING, allowNull: false },
+    action: { type: DataTypes.STRING, allowNull: false },
+    txHash: { type: DataTypes.STRING, allowNull: true },
+  },
+  { sequelize, modelName: "AuditTrail", timestamps: true }
+);
+
+// Helper to create audit entry
+interface AuditEntryInput {
+  orderId: number;
+  batchId: number;
+  from: string;
+  to: string;
+  action: string;
+  txHash?: string | null; // optional
+}
+
+async function createAuditEntry(entry: AuditEntryInput) {
+  await AuditTrail.create(entry);
+}
+
+
+
+// models/PharmacyOrder.ts
+
+
+class PharmacyOrder extends Model<InferAttributes<PharmacyOrder>, InferCreationAttributes<PharmacyOrder>> {
+  declare id: CreationOptional<number>;
+  declare batchId: number;
+  declare distributor: string;
+  declare pharmacy: string;
+  declare price: number | null;
+  declare status: string; // pending | seller_confirmed | paid | completed | cancelled
+  declare txHash: string | null;
+  declare ownershipTransferred?: boolean | null;
+  declare contact?: string | null;
+}
+
+PharmacyOrder.init(
+  {
+    id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
+    batchId: { type: DataTypes.INTEGER, allowNull: false },
+    distributor: { type: DataTypes.STRING, allowNull: false },
+    pharmacy: { type: DataTypes.STRING, allowNull: false },
+    price: { type: DataTypes.FLOAT, allowNull: true },
+    status: { type: DataTypes.STRING, allowNull: false, defaultValue: "pending" },
+    txHash: { type: DataTypes.STRING, allowNull: true },
+    ownershipTransferred: { type: DataTypes.BOOLEAN, allowNull: true, defaultValue: false },
+    contact: { type: DataTypes.STRING, allowNull: true },
+  },
+  { sequelize, modelName: "PharmacyOrder", timestamps: true }
+);
+
+export default PharmacyOrder;
+
+
+
+
 // -------------------- BLOCKCHAIN SETUP --------------------
 const contractPath = path.join(__dirname, "../contracts/PharmaTrustChain.json");
 if (!fs.existsSync(contractPath)) {
@@ -110,8 +226,6 @@ function isValidAddress(a: string): boolean {
 }
 
 // -------------------- ROUTES --------------------
-
-// ✅ SIGNUP
 app.post("/signup", async (req: Request, res: Response): Promise<void> => {
   try {
     const { name, email, role, walletAddress, licenseNumber } = req.body;
@@ -121,23 +235,38 @@ app.post("/signup", async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Check existing user
     const existingUser = await User.findOne({ where: { walletAddress } });
     if (existingUser) {
-      res
-        .status(400)
-        .json({ message: "User already registered locally. Please log in." });
+      res.status(400).json({
+        message: "User already registered locally. Please log in.",
+      });
       return;
     }
 
-    // Check PPB registry
-    const licenseExists = await PPBRecord.findOne({ where: { licenseNumber } });
-    if (!licenseExists) {
-      res.status(400).json({ message: "License number not found in PPB database" });
+    const ppbRecord = await PPBRecord.findOne({ where: { licenseNumber } });
+    if (!ppbRecord) {
+      res.status(400).json({
+        success: false,
+        message: "❌ License number not found in PPB database.",
+      });
       return;
     }
 
-    // Save pending user
+    const nameMatch =
+      ppbRecord.name.trim().toLowerCase() === name.trim().toLowerCase();
+    const emailMatch =
+      ppbRecord.email.trim().toLowerCase() === email.trim().toLowerCase();
+    const roleMatch = ppbRecord.role === Number(role);
+
+    if (!nameMatch || !emailMatch || !roleMatch) {
+      res.status(400).json({
+        success: false,
+        message: "❌ Submitted details do not match PPB registry record. Check your name, email or role again !!!",
+        registryRecord: ppbRecord, 
+      });
+      return;
+    }
+
     await User.create({
       name,
       email,
@@ -149,15 +278,18 @@ app.post("/signup", async (req: Request, res: Response): Promise<void> => {
 
     res.json({
       success: true,
-      message: "Registration pending verification by admin",
+      message: "✅ Registration verified with PPB registry. Awaiting admin approval.",
     });
   } catch (error: any) {
     console.error("Signup error:", error);
-    res.status(500).json({ error: error.message || "Internal Server Error" });
+    res
+      .status(500)
+      .json({ error: error.message || "Internal Server Error" });
   }
 });
 
-// ✅ LOGIN
+
+// LOGIN
 app.post("/login", async (req: Request, res: Response): Promise<void> => {
   try {
     const { walletAddress } = req.body;
@@ -177,7 +309,7 @@ app.post("/login", async (req: Request, res: Response): Promise<void> => {
   }
 });
 
-// ✅ ADMIN - Pending requests
+//ADMIN - Pending requests
 app.get("/pending-requests", async (_req: Request, res: Response): Promise<void> => {
   try {
     const pending = await User.findAll({ where: { status: "pending" } });
@@ -188,7 +320,7 @@ app.get("/pending-requests", async (_req: Request, res: Response): Promise<void>
   }
 });
 
-// ✅ ADMIN - Approve
+// ADMIN - Approve
 app.post("/approve-request/:wallet", async (req: Request, res: Response): Promise<void> => {
   try {
     const walletAddress = req.params.wallet;
@@ -216,7 +348,7 @@ app.post("/approve-request/:wallet", async (req: Request, res: Response): Promis
   }
 });
 
-// ✅ ADMIN - Reject
+// ADMIN - Reject
 app.post("/reject-request/:wallet", async (req: Request, res: Response): Promise<void> => {
   try {
     const walletAddress = req.params.wallet;
@@ -236,7 +368,7 @@ app.post("/reject-request/:wallet", async (req: Request, res: Response): Promise
 });
 
 
-// ✅ FETCH ALL BATCHES (for frontend use)
+// FETCH ALL BATCHES (for frontend use)
 app.get("/batches", async (_req: Request, res: Response): Promise<void> => {
   try {
     const batches = await contract.getAllBatches();
@@ -264,7 +396,7 @@ const formatted = batches.map((b: any) => ({
 });
 
 
-// ✅ Mock PPB API
+// Mock PPB API
 app.get("/api/ppb", async (_req: Request, res: Response): Promise<void> => {
   try {
     const records = await PPBRecord.findAll();
@@ -274,17 +406,17 @@ app.get("/api/ppb", async (_req: Request, res: Response): Promise<void> => {
   }
 });
 
-// ✅ Check user status (used by frontend polling)
+
+//Check user status (used by frontend polling)
 app.get("/api/user-status/:wallet", async (req: Request, res: Response): Promise<void> => {
   try {
     const { wallet } = req.params;
-    const user = await User.findOne({ where: { walletAddress: wallet } });
+    const user = await User.findOne({ where: { walletAddress: wallet  } });
 
     if (!user) {
       res.status(404).json({ status: "not_found" });
       return;
     }
-
     res.json({ status: user.status });
   } catch (error) {
     console.error("User status check error:", error);
@@ -439,26 +571,640 @@ app.get("/user/:wallet", async (req, res) => {
   }
 });
 
+
+
+// -------------------- ORDER / PAYMENT ROUTES --------------------
+
+// POST /orders/confirm
+app.post("/orders/confirm", async (req: Request, res: Response) => {
+  try {
+    const { orderId, amount} = req.body;
+
+    if (!orderId || !amount || amount <= 0) {
+      return res.status(400).json({ success: false, message: "Invalid payload" });
+    }
+
+    // Find the order by ID
+    const order = await Order.findByPk(orderId);
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    // Only allow confirming orders in "pending" status
+    if (order.status !== "pending") {
+      return res.status(400).json({ success: false, message: "Order cannot be confirmed" });
+    }
+
+    // Update order details
+    order.price = amount;
+    order.status = "awaiting_payment";
+
+    await order.save();
+
+    // Optional: create an audit entry if you have audit logging
+    await createAuditEntry({
+      orderId: order.id as number,
+      batchId: order.batchId,
+      from: order.seller,
+      to: order.buyer,
+      action: "order_confirmed",
+    });
+
+    res.json({ success: true, message: "Order confirmed successfully!", order });
+  } catch (err: any) {
+    console.error("Confirm order error:", err);
+    res.status(500).json({ success: false, message: err.message || "Failed to confirm order" });
+  }
+});
+
+
+// Create new order
+app.post("/orders/create", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { batchId, buyer, seller, status, contact } = req.body;
+
+    if (!batchId || !buyer || !seller) {
+      res.status(400).json({ success: false, message: "Missing required fields." });
+      return;
+    }
+
+    
+    const existingOrder = await Order.findOne({
+      where: {
+        batchId,
+        buyer,
+        status: ["pending", "awaiting_payment"],
+      },
+    });
+
+    if (existingOrder) {
+      res.status(400).json({
+        success: false,
+        message: "You already have an active order for this batch.",
+      });
+      return;
+    }
+
+
+    const newOrder = await Order.create({
+      batchId,
+      buyer,
+      seller,
+      status: status || "pending",
+      contact: contact || null,
+    });
+
+    res.json({
+      success: true,
+      message: "Order placed successfully!",
+      data: newOrder,
+    });
+  } catch (err) {
+    console.error("Error creating order:", err);
+    res.status(500).json({
+      success: false,
+      message: "Error creating order.",
+    });
+  }
+});
+
+
+// GET /orders/manufacturer/:wallet
+app.get("/orders/manufacturer/:wallet", async (req: Request, res: Response) => {
+  try {
+    const wallet = (req.params.wallet || "").toLowerCase().trim();
+    if (!wallet) {
+      return res.status(400).json({ success: false, message: "Missing wallet address" });
+    }
+
+    const orders = await Order.findAll({
+      where: Sequelize.where(
+        Sequelize.fn("lower", Sequelize.col("seller")),
+        wallet
+      ),
+    });
+    res.json({ success: true, data: orders });
+  } catch (err: any) {
+    console.error("Fetch manufacturer orders error:", err);
+    res.status(500).json({ success: false, message: "Failed to fetch orders", error: err.message });
+  }
+});
+
+// ✅ Get all awaiting-payment orders for a distributor
+app.get("/orders/distributor/:wallet/awaiting", async (req: Request, res: Response) => {
+  try {
+    const wallet = (req.params.wallet || "").toLowerCase().trim();
+    if (!wallet) {
+      return res.status(400).json({ success: false, message: "Missing wallet address" });
+    }
+
+    const orders = await Order.findAll({
+      where: { status: "awaiting_payment" },
+      order: [["createdAt", "DESC"]],
+    });
+
+    const filtered = orders.filter(order => order.buyer.toLowerCase() === wallet);
+
+    if (filtered.length === 0) {
+      return res.json({ success: true, data: [] });
+    }
+
+    res.json({ success: true, data: filtered });
+  } catch (err: any) {
+    console.error("Error fetching awaiting payment orders:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch awaiting payment orders",
+      error: err.message,
+    });
+  }
+});
+
+
+
+// Audit Record
+
+app.post("/orders/pay", async (req, res) => {
+  try {
+    const { batchId, buyer, seller } = req.body;
+
+    // 1️⃣ Verify order from DB
+    const order = await Order.findOne({ where: { batchId, buyer, seller, status: "awaiting_payment" } });
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found or already paid." });
+    }
+
+    // 2️⃣ Call contract to transfer ownership (admin/operator as signer)
+    const tx = await contract.transferOwnership(batchId, buyer);
+    const receipt = await tx.wait();
+
+    // 3️⃣ Only mark as paid if on-chain success
+    if (receipt.status === 1) {
+      order.status = "paid";
+      order.ownershipTransferred = true; // 🆕 mark it as done
+
+      await order.save();
+
+
+        await AuditTrail.create({
+        orderId: order.id,
+        batchId,
+        from: seller,
+        to: buyer,
+        action: "Ownership Transferred",
+        txHash: receipt.transactionHash,
+      });
+
+
+      return res.json({
+        success: true,
+        message: "Payment confirmed and ownership transferred on-chain.",
+        txHash: receipt.transactionHash,
+      });
+    } else {
+      return res.status(500).json({ success: false, message: "On-chain transaction failed." });
+    }
+
+  } catch (err) {
+    console.error("⚠️ Error in /orders/pay:", err);
+    res.status(500).json({
+      success: false,
+      message: "Payment confirmation failed."
+    });
+  }
+});
+
+
+app.post("/audit/batch-created", async (req, res) => {
+  try {
+    const { batchId, manufacturerWallet, txHash } = req.body;
+    console.log(txHash)
+
+    if (!batchId || !manufacturerWallet) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing batchId or manufacturerWallet",
+      });
+    }
+
+    const audit = await AuditTrail.create({
+      orderId: 0, // or null if not applicable
+      batchId,
+      from: "0x0000000000000000000000000000000000000000",
+      to: manufacturerWallet,
+      action: "BatchCreated",
+      txHash: txHash || null, // <-- ✅ ensure txHash is saved
+    });
+
+    res.json({
+      success: true,
+      message: "Audit trail recorded successfully",
+      data: audit,
+    });
+  } catch (err) {
+    console.error("Error recording audit trail:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to record audit trail",
+    });
+  }
+});
+
+
+// 🧾 Fetch all audit logs (admin sees everything)
+app.get("/audit", async (req, res) => {
+  try {
+    const audits = await AuditTrail.findAll({
+      order: [["createdAt", "DESC"]],
+    });
+    res.json({ success: true, data: audits });
+  } catch (err) {
+    console.error("⚠️ Error fetching audit logs:", err);
+    res.status(500).json({ success: false, message: "Failed to fetch audit logs" });
+  }
+});
+
+
+app.get("/batches/distributor/:wallet", async (req, res) => {
+  try {
+    const wallet = req.params.wallet.toLowerCase();
+
+    // 🔹 1. Fetch all blockchain batches
+    const batches = await contract.getAllBatches();
+
+    const formatted = batches.map((b: any) => ({
+      id: b.id?.toString(),
+      name: b.name,
+      batchNumber: b.batchNumber,
+      ipfsHash: b.ipfsHash,
+      manufacturer: b.manufacturer,
+      currentOwner: b.currentOwner,
+      revoked: b.revoked,
+      timestamp: b.timestamp?.toString(),
+      revokeReason: b.revokeReason,
+    }));
+
+    // 🔹 2. Fetch ownershipTransferred orders
+    const transferredOrders = await Order.findAll({
+      where: { ownershipTransferred: true },
+      attributes: ["batchId"],
+    });
+
+    const transferredIds = transferredOrders.map((o) => o.batchId?.toString());
+
+    // 🔹 3. Filter logic:
+    // (A) Batches available from manufacturers (unsold)
+    const availableBatches = formatted.filter(
+      (b:any) =>
+        !b.revoked &&
+        !transferredIds.includes(b.id) &&
+        b.currentOwner.toLowerCase() === b.manufacturer.toLowerCase()
+    );
+
+    // (B) Batches owned by the distributor (already purchased)
+    const ownedBatches = formatted.filter(
+      (b:any) => b.currentOwner.toLowerCase() === wallet
+    );
+
+    // 🔹 4. Merge and return unique list
+    const combined = [
+      ...availableBatches,
+      ...ownedBatches.filter(
+        (ob:any) => !availableBatches.some((ab:any) => ab.id === ob.id)
+      ),
+    ];
+
+    res.json({ success: true, data: combined });
+  } catch (error: any) {
+    console.error("Error fetching distributor batches:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch distributor batches",
+      error: error.message,
+    });
+  }
+});
+
+// ______________________________Pharmacy_Routes______________________________________________
+
+
+// 1. Get all batches currently owned by any distributor (for pharmacy to browse)
+app.get("/batch/distributor/all", async (req, res) => {
+  try {
+    const batches = await contract.getAllBatches();
+    const formatted = batches.map((b: any) => ({
+      id: b.id?.toString(),
+      name: b.name,
+      batchNumber: b.batchNumber,
+      ipfsHash: b.ipfsHash,
+      manufacturer: b.manufacturer,
+      currentOwner: b.currentOwner,
+      revoked: b.revoked,
+      timestamp: b.timestamp?.toString(),
+      revokeReason: b.revokeReason,
+    }));
+
+    // distributor-owned: currentOwner != manufacturer AND not revoked
+    const distributorBatches = formatted.filter(
+      (b:any) =>
+        !b.revoked &&
+        b.currentOwner &&
+        b.manufacturer &&
+        b.currentOwner.toLowerCase() !== b.manufacturer.toLowerCase()
+    );
+
+    
+    res.json({ success: true, data: distributorBatches });
+  } catch (err: any) {
+    console.error("Error fetching distributor batches:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 2. Create a new pharmacy order (pharmacy orders from distributor)
+app.post("/pharmacy-orders", async (req, res) => {
+  try {
+    const { batchId, distributor, pharmacy, contact } = req.body;
+        if (!batchId || !distributor || !pharmacy) {
+      return res.status(400).json({ success: false, message: "Missing fields" });
+    }
+
+    const existingOrder = await PharmacyOrder.findOne({ where: { batchId } });
+    if (existingOrder) {
+      return res.status(400).json({
+        success: false,
+        message: "Order already made for this batch.",
+      });
+    }
+    
+    const order = await PharmacyOrder.create({
+      batchId,
+      distributor,
+      pharmacy,
+      contact: contact ?? null,
+      status: "pending",
+    });
+
+    res.json({ success: true, data: order });
+  } catch (err) {
+    console.error("Error creating pharmacy order:", err);
+    res.status(500).json({ success: false, message: err });
+  }
+});
+
+
+// 3. Distributor: list orders assigned to them (to confirm and set price)
+app.get("/pharmacy/distributor/:wallet", async (req, res) => {
+  try {
+    
+
+    const wallet = (req.params.wallet || "").toLowerCase();
+const orders = await PharmacyOrder.findAll({
+  where: sequelize.where(
+    sequelize.fn("LOWER", sequelize.col("distributor")),
+    wallet
+  )
+});
+
+    res.json({ success: true, data: orders });
+  } catch (err: any) {
+    console.error("Error fetching distributor pharmacy orders:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 4. Pharmacy: list their orders
+app.get("/pharmacy-orders/pharmacy/:wallet", async (req, res) => {
+  try {
+    const wallet = (req.params.wallet || "").toLowerCase();
+    const orders = await PharmacyOrder.findAll({ where: { pharmacy: wallet } });
+    res.json({ success: true, data: orders });
+  } catch (err: any) {
+    console.error("Error fetching pharmacy orders:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 5. Distributor confirms order and sets price
+app.post("/pharmacy-orders/confirm", async (req, res) => {
+  try {
+    
+    const { price,id } = req.body;
+    const order = await PharmacyOrder.findByPk(id);
+    if (!order) return res.status(404).json({ success: false, message: "Order not found" });
+
+    order.price = price ?? order.price;
+    order.status = "seller_confirmed";
+    await order.save();
+
+    res.json({ success: true, data: order, message: "Order confirmed with price" });
+  } catch (err: any) {
+    console.error("Error confirming pharmacy order:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+
+
+
+app.get("/pharmacy/check-updates/:wallet", async (req, res) => {
+  try {
+    const pharmacy = req.params.wallet?.toLowerCase();
+    if (!pharmacy) {
+      return res.status(400).json({ success: false, message: "Missing pharmacy wallet" });
+    }
+
+    const awaitingOrders = await PharmacyOrder.findAll({
+      where: { pharmacy, status: "awaiting_payment" },
+    });
+
+    if (!awaitingOrders || awaitingOrders.length === 0) {
+      return res.json({ success: true, data: [] });
+    }
+
+    res.json({ success: true, data: awaitingOrders });
+  } catch (err) {
+    console.error("Error fetching awaiting payment orders:", err);
+    res.status(500).json({ success: false, message: err });
+  }
+});
+
+
+app.post("/pharmacy-orders/:id/confirm-payment", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const order = await PharmacyOrder.findByPk(id);
+    if (!order)
+      return res.status(404).json({ success: false, message: "Order not found" });
+    console.log(order)
+    //  Update order status
+    order.status = "paid";
+    await order.save();
+
+    // Blockchain ownership transfer
+    const tx = await contract.transferOwnership(order.batchId, order.pharmacy);
+    const receipt = await tx.wait();
+
+    // Record audit trail (transfer attempt + result)
+    await AuditTrail.create({
+      orderId: order.id,
+      batchId: order.batchId,
+      from: order.distributor,
+      to: order.pharmacy,
+      action:
+        receipt.status === 1
+          ? "OWNERSHIP_TRANSFER_SUCCESS"
+          : "OWNERSHIP_TRANSFER_FAILED",
+      txHash: receipt.status === 1 ? receipt.hash : null,
+    });
+
+    if (receipt.status === 1) {
+      order.status = "completed";
+      order.ownershipTransferred = true;
+      order.txHash = receipt.hash;
+      await order.save();
+
+      return res.json({
+        success: true,
+        message: "Payment confirmed and ownership transferred successfully",
+        txHash: receipt.hash,
+      });
+    } else {
+      return res
+        .status(500)
+        .json({ success: false, message: "On-chain transfer failed" });
+    }
+  } catch (err) {
+    console.error("Error confirming pharmacy payment:", err);
+
+    try {
+      await AuditTrail.create({
+        orderId: Number(req.params.id),
+        batchId: 0,
+        from: "system",
+        to: "system",
+        action: "ERROR_CONFIRM_PAYMENT",
+        txHash: null,
+      });
+    } catch (auditErr) {
+      console.error("Audit trail logging failed:", auditErr);
+    }
+
+    res.status(500).json({ success: false, message: err});
+  }
+});
+
+app.get("/batches/pharmacy/:wallet", async (req, res) => {
+  try {
+    const wallet = (req.params.wallet || "").toLowerCase();
+    const batches = await contract.getAllBatches();
+    const formatted = batches.map((b: any) => ({
+      id: b.id?.toString(),
+      name: b.name,
+      batchNumber: b.batchNumber,
+      ipfsHash: b.ipfsHash,
+      manufacturer: b.manufacturer,
+      currentOwner: b.currentOwner,
+      revoked: b.revoked,
+      timestamp: b.timestamp?.toString(),
+      revokeReason: b.revokeReason,
+    }));
+
+    const owned = formatted.filter((b:any) => b.currentOwner?.toLowerCase() === wallet);
+    res.json({ success: true, data: owned });
+  } catch (err: any) {
+    console.error("Error fetching pharmacy-owned batches:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+
 // -------------------- START SERVER --------------------
 (async () => {
   try {
-    await sequelize.sync();
+await sequelize.sync();
+const seedPPBRecords = async () => {
+  const count = await PPBRecord.count();
+  if (count === 0) {
+    const sample: Array<{
+      name: string;
+      email: string;
+      licenseNumber: string;
+      role: number;
+    }> = [];
 
-    // Seed mock PPB records
-    const count = await PPBRecord.count();
-    if (count === 0) {
-      const sample = [];
-      for (let i = 1; i <= 20; i++) {
-        sample.push({
-          name: `Verified Entity ${i}`,
-          email: `verified${i}@example.com`,
-          licenseNumber: `PPB-${1000 + i}`,
-          role: ((i - 1) % 3) + 1,
-        });
-      }
-      await PPBRecord.bulkCreate(sample);
-      console.log("✅ Seeded 20 mock PPB registry entries.");
-    }
+    // 1 = Manufacturer
+    const manufacturers = [
+      "Beta Healthcare International Ltd",
+      "Cosmos Pharmaceutical Ltd",
+      "Dawa Life Sciences",
+      "Biodeal Laboratories Ltd",
+      "Universal Corporation Ltd",
+      "Ray Pharmaceuticals Ltd",
+      "Aspen Kenya Ltd",
+      "Concept Africa Pharmaceuticals Ltd",
+      "Didy Pharmaceuticals Ltd",
+      "Gesto Pharmaceuticals Ltd",
+    ];
+    manufacturers.forEach((nm, idx) => {
+      sample.push({
+        name: nm,
+        email: nm.toLowerCase().replace(/[^a-z]/g, "") + "@manufacturer.co.ke",
+        licenseNumber: `PPBMFG${(100000000000 + idx).toString().padStart(10, "0")}`,
+        role: 1,
+      });
+    });
+
+    // 2 = Distributor
+    const distributors = [
+      "Prunus Pharma Ltd",
+      "Regal Pharmaceuticals Ltd",
+      "Omaera Pharmaceuticals Ltd",
+      "Transchem Pharmaceuticals Ltd",
+      "Harleys Ltd",
+      "Zadchem Healthcare Ltd",
+      "Abacus Pharma (K) Ltd",
+      "Temple Stores Pharmaceuticals",
+      "Rangechem Pharmaceuticals",
+      "Veteran Pharmaceuticals Ltd",
+    ];
+    distributors.forEach((nm, idx) => {
+      sample.push({
+        name: nm,
+        email: nm.toLowerCase().replace(/[^a-z]/g, "") + "@distributor.co.ke",
+        licenseNumber: `PPBDST${(200000000000 + idx).toString().padStart(10, "0")}`,
+        role: 2,
+      });
+    });
+
+    // 3 = Pharmacist
+    const pharmacists = [
+      "Jane Mwangi",
+      "Peter Otieno",
+      "Catherine Wambui",
+      "Michael Kilonzo",
+      "Alice Njeri",
+      "Samuel Odhiambo",
+      "Esther Kamau",
+      "George Mutiso",
+      "Florence Chege",
+      "David Oloo",
+    ];
+    pharmacists.forEach((nm, idx) => {
+      sample.push({
+        name: nm,
+        email: nm.toLowerCase().replace(/ /g, ".") + "@pharmacist.co.ke",
+        licenseNumber: `PPBPHM${(300000000000 + idx).toString().padStart(10, "0")}`,
+        role: 3,
+      });
+    });
+
+    await PPBRecord.bulkCreate(sample);
+    console.log("✅ Seeded realistic PPB registry entries (Manufacturers, Distributors, Pharmacists).");
+  }
+};
+
+seedPPBRecords().catch((err) => console.error("Seeding error:", err));
 
     app.listen(PORT, () => {
       console.log(`✅ Backend running on http://localhost:${PORT}`);
