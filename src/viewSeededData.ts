@@ -3,10 +3,9 @@ import {
   Sequelize,
   DataTypes,
   Model,
-  InferAttributes,
-  InferCreationAttributes,
-  CreationOptional,
 } from "sequelize";
+import type { CreationOptional ,InferCreationAttributes, InferAttributes} from "sequelize";
+
 import path from "path";
 
 // ✅ Initialize SQLite connection (same path as your main DB)
