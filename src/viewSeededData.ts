@@ -1,10 +1,10 @@
 import express, { Request, Response } from "express";
-import {
-  Sequelize,
-  DataTypes,
-  Model,
+import { Sequelize, DataTypes, Model } from "sequelize";
+import type {
+  CreationOptional,
+  InferCreationAttributes,
+  InferAttributes,
 } from "sequelize";
-import type { CreationOptional ,InferCreationAttributes, InferAttributes} from "sequelize";
 
 import path from "path";
 

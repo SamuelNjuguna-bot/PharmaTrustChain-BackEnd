@@ -9,8 +9,10 @@
     "compile-contract": "node scripts/compile_contract.js"
   },
   "dependencies": {
+    "axios": "^1.13.2",
     "body-parser": "^1.20.2",
     "cors": "^2.8.5",
+    "dayjs": "^1.11.19",
     "dotenv": "^16.3.1",
     "ethers": "^6.8.0",
     "express": "^4.18.2",
